@@ -3,7 +3,7 @@ package model
 import "time"
 
 type STTMResponse struct {
-	Index float64 `json:"index"`
+	Indexes []float64 `json:"indexes"`
 }
 
 type STTMErrorResponse struct {

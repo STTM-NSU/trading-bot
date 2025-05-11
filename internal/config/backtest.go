@@ -46,8 +46,8 @@ var BacktestCfg = BacktestConfig{
 		},
 		STTM: STTMConfig{
 			Address:             "http://192.168.0.24:8000",
-			TopSTTMPercent:      0.2,
-			TopSTTMThreshold:    0,
+			TopSTTMPercent:      0.5,
+			TopSTTMThreshold:    -1000,
 			CalculationInterval: Week,
 			STTMHyperparameters: STTMHyperparameters{
 				Alpha:     0.05,

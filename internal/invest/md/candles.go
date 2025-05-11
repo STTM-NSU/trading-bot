@@ -24,14 +24,14 @@ type CandlesService struct {
 func NewCandlesService(c *investgo.Client, db *sqlx.DB, logger logger.Logger) *CandlesService {
 	return &CandlesService{
 		mdService:   c.NewMarketDataServiceClient(),
-		rateLimiter: ratelimit.New(300, ratelimit.Per(1*time.Minute)),
+		rateLimiter: ratelimit.New(500, ratelimit.Per(1*time.Minute)),
 		db:          db,
 		logger:      logger,
 	}
 }
 
 func (s *CandlesService) GetLastPriceOn(instrumentId string, from time.Time) (float64, error) {
-	candles, err := s.GetCandlesFor(instrumentId, from.Add(-5*time.Hour), from.Add(3*time.Hour))
+	candles, err := s.GetCandlesFor(instrumentId, from.Add(-1*time.Hour), from.Add(1*time.Hour))
 	if err != nil || len(candles) == 0 {
 		return 0, err
 	}
@@ -40,6 +40,9 @@ func (s *CandlesService) GetLastPriceOn(instrumentId string, from time.Time) (fl
 	for _, candle := range candles {
 		if candle.Ts.Truncate(24 * time.Hour).Equal(from.Truncate(24 * time.Hour)) {
 			lastCandle = candle.ClosePrice
+		}
+		if candle.Ts.Equal(from) {
+			return candle.ClosePrice, nil
 		}
 	}
 
@@ -65,7 +68,7 @@ func (s *CandlesService) GetCandlesFor(instrumentId string, from, to time.Time) 
 	// f := from.Truncate(time.Hour)
 	// t := to.Truncate(time.Hour)
 	// hoursCnt := int(to.Sub(from).Hours())
-	dbCandles, err := s.GetCandlesFromDB(instrumentId, from, to)
+	dbCandles, err := s.GetCandlesFromDB(instrumentId, from.Add(-3*time.Hour), to.Add(3*time.Hour))
 	if err != nil {
 		s.logger.Errorf("can't get candles from database: %s", err)
 	}

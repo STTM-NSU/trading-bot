@@ -34,7 +34,7 @@ const (
 // учитываем комиссию для некотор
 
 func main() {
-	zapLogger, loggerSync, err := logger.NewZapLogger(logger.Debug)
+	zapLogger, loggerSync, err := logger.NewZapLogger(logger.Info)
 	if err != nil {
 		log.Fatalf("%s: can't init logger", err)
 	}
@@ -70,7 +70,7 @@ func main() {
 	}
 
 	// собрать стартовый портфель на стартовую сумму - не надо, дождёмся пятницы
-	portfolio := backtest.NewPortfolio(cfg.StartAmountOfMoney[0].Value)
+	portfolio := backtest.NewPortfolio(zapLogger, cfg.StartAmountOfMoney[0].Value)
 
 	candlesService := md.NewCandlesService(investClient, db, zapLogger)
 	instrumentsService := instrument.NewInstrumentsService(investClient, zapLogger)
@@ -90,6 +90,8 @@ func main() {
 				continue
 			}
 
+			zapLogger.Debugf("Hour: %v", h)
+
 			if h.Weekday() == time.Thursday {
 				tradingBot.SellOutRemaining()
 			}
@@ -102,8 +104,13 @@ func main() {
 				continue
 			}
 
-			tradingBot.CheckTechIndicators(h)
+			if h.Hour() == 0 {
+				tradingBot.CheckTechIndicators(h)
+			}
 			tradingBot.ExecutorCheck(h)
+		}
+		if ctx.Err() != nil {
+			break
 		}
 		// следить типо лимитными заявками за ценами
 		// следить за имеющимся портфелем с помощью тех анализа

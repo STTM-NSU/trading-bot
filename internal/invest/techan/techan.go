@@ -6,6 +6,7 @@ import (
 
 	"github.com/STTM-NSU/trading-bot/internal/config"
 	"github.com/STTM-NSU/trading-bot/internal/logger"
+	"github.com/STTM-NSU/trading-bot/internal/tools"
 	"github.com/russianinvestments/invest-api-go-sdk/investgo"
 	investapi "github.com/russianinvestments/invest-api-go-sdk/proto"
 	"go.uber.org/ratelimit"
@@ -23,7 +24,7 @@ func NewTechAnalyseService(c *investgo.Client, cfg config.TechnicalIndicatorsCon
 	return &TechAnalyseService{
 		logger:      logger,
 		cfg:         cfg,
-		rateLimiter: ratelimit.New(200, ratelimit.Per(1*time.Minute)),
+		rateLimiter: ratelimit.New(100, ratelimit.Per(1*time.Minute)),
 		mdService:   c.NewMarketDataServiceClient(),
 	}
 }
@@ -95,7 +96,7 @@ func (t *TechAnalyseService) GetBB(instrumentId string, from, to time.Time) ([]T
 		TypeOfPrice:   investapi.GetTechAnalysisRequest_TYPE_OF_PRICE_CLOSE,
 		Length:        int32(t.cfg.BollingerBands.Length),
 		Deviation: &investapi.GetTechAnalysisRequest_Deviation{
-			DeviationMultiplier: investgo.FloatToQuotation(t.cfg.BollingerBands.Deviation, nil),
+			DeviationMultiplier: tools.FloatToQuotation(t.cfg.BollingerBands.Deviation, 1),
 		},
 	}
 

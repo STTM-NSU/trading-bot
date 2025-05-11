@@ -54,40 +54,48 @@ func (e *Executor) Check(from time.Time) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	e.logger.Debugf("checking trading instruments %d", len(e.instruments))
+
 	for _, instr := range e.instruments {
 		if instr.direction == Sell {
 			price, err := e.candlesService.GetLastPriceOn(instr.instrumentId, from)
 			if err != nil {
-				e.logger.Errorf("GetLastPriceOn err: %v", err)
+				e.logger.Errorf("GetLastPriceOn exec check err: %v", err)
 				continue
 			}
 			if instr.market {
 				instrPrice := instr.quantity * instr.lot * price * (1 - e.taxes[instr.instrumentType])
+				e.logger.Infof("sell market %s %f %f %f %f", instr.instrumentId, instrPrice, instr.quantity, instr.lot, price)
 				e.portfolio.UpdateBalance(instrPrice, instr.instrumentId)
 				e.portfolio.RemoveInstrument(instr.instrumentId)
 				delete(e.instruments, instr.instrumentId)
-			} else if instr.wantedPrice < price || instr.hedgePrice > price {
+			} else if instr.wantedPrice <= price || instr.hedgePrice > price {
 				instrPrice := instr.quantity * instr.lot * price * (1 - e.taxes[instr.instrumentType])
+				e.logger.Infof("sell limit %s [%f, %f] %f %f %f %f", instr.instrumentId, instr.wantedPrice, instr.hedgePrice,
+					instrPrice, instr.quantity, instr.lot, price)
 				e.portfolio.UpdateBalance(instrPrice, instr.instrumentId)
 				e.portfolio.RemoveInstrument(instr.instrumentId)
 				delete(e.instruments, instr.instrumentId)
 			}
 		}
 	}
+
 	for _, instr := range e.instruments {
 		if instr.direction == Buy && instr.market {
 			price, err := e.candlesService.GetLastPriceOn(instr.instrumentId, from)
 			if err != nil {
-				e.logger.Errorf("GetLastPriceOn err: %v", err)
+				e.logger.Errorf("GetLastPriceOn exec err: %v", err)
 				continue
 			}
 			instrPrice := instr.quantity * instr.lot * price * (1 + e.taxes[instr.instrumentType])
 			if e.portfolio.GetBalance() >= instrPrice {
+				e.logger.Infof("buy %s %f %f %f %f", instr.instrumentId, instrPrice, instr.quantity, instr.lot, price)
 				e.portfolio.Buy(instrPrice)
 				e.portfolio.AddInstrument(model.PortfolioInstrument{
 					InstrumentType: string(instr.instrumentType),
 					EntryPrice:     instrPrice,
 					Quantity:       instr.quantity,
+					Lot:            instr.lot,
 					InstrumentID:   instr.instrumentId,
 				})
 				delete(e.instruments, instr.instrumentId)
@@ -122,14 +130,20 @@ func (e *Executor) SellLimit(price float64, profit, hedge float64, i model.Portf
 		e.logger.Errorf("SellLimit: instrument %v already exists", i.InstrumentID)
 		return
 	}
+
+	p := i.EntryPrice
+	if price > i.EntryPrice {
+		p = price
+	}
+
 	e.instruments[i.InstrumentID] = TrackingInstrument{
 		instrumentId:   i.InstrumentID,
 		quantity:       i.Quantity,
 		lot:            i.Lot,
 		instrumentType: model.InstrumentType(i.InstrumentType),
 		i:              i,
-		hedgePrice:     price * (1 - hedge),
-		wantedPrice:    price * (1 + profit),
+		hedgePrice:     p * (1 - hedge),
+		wantedPrice:    p * (1 + profit),
 		direction:      Sell,
 	}
 }

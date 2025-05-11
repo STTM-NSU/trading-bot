@@ -22,8 +22,9 @@ type Portfolio struct {
 	candlesService     *md.CandlesService
 }
 
-func NewPortfolio(balance float64) *Portfolio {
+func NewPortfolio(logger logger.Logger, balance float64) *Portfolio {
 	return &Portfolio{
+		logger:       logger,
 		balance:      balance,
 		entryBalance: balance,
 		instruments:  make(map[string]model.PortfolioInstrument),
@@ -84,7 +85,7 @@ func (p *Portfolio) UpdateBalance(sellPrice float64, id string) {
 	p.balance += sellPrice
 
 	if v, ok := p.instruments[id]; ok {
-		p.logger.Infof("sell with price %f, profit %f", sellPrice, (sellPrice-v.EntryPrice)/sellPrice*100)
+		p.logger.Infof("sell with price %f, profit %f percent", sellPrice, (sellPrice-v.EntryPrice)/sellPrice*100)
 	} else {
 		p.logger.Warnf("sell with price %f unknown id: %s", sellPrice, id)
 	}

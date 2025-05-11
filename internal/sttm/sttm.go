@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/STTM-NSU/trading-bot/internal/config"
@@ -39,16 +40,16 @@ func (s *STTMService) GetConfig() config.STTMConfig {
 	return s.cfg
 }
 
-// curl -X GET "http://192.168.0.24:8000/get-index?instrument_id=BBG004730N88&from=2022-11-04T00:00:00&to=2022-11-05T00:00:00&alpha=0.05&p_value=0.05&threshold=0.3" -H "accept: application/json"
-func (s *STTMService) GetIndex(ctx context.Context, i model.Instrument, from, to time.Time) (float64, time.Duration, error) {
+// curl -X GET "http://192.168.0.24:8000/get-index?instrument_ids=BBG004730N88,BBG004730N88,BBG004730N88&from=2022-11-04T00:00:00&to=2022-11-05T00:00:00&alpha=0.05&p_value=0.05&threshold=0.3" -H "accept: application/json"
+func (s *STTMService) GetIndexes(ctx context.Context, from, to time.Time, instrumentIds ...string) ([]float64, time.Duration, error) {
 	if from.After(to) {
-		return 0, 0, fmt.Errorf("invalid interval")
+		return nil, 0, fmt.Errorf("invalid interval")
 	}
 	if to.Sub(from).Hours() < 24 {
-		return 0, 0, fmt.Errorf("interval must be at least one day")
+		return nil, 0, fmt.Errorf("interval must be at least one day")
 	}
-	if i.FIGI == "" {
-		return 0, 0, fmt.Errorf("no figi")
+	if len(instrumentIds) == 0 {
+		return nil, 0, fmt.Errorf("empty ids")
 	}
 
 	fromString := fmt.Sprintf("%s", from.UTC().Format(time.RFC3339))
@@ -58,12 +59,12 @@ func (s *STTMService) GetIndex(ctx context.Context, i model.Instrument, from, to
 
 	req := s.c.R().
 		SetQueryParams(map[string]string{
-			"from":          fromString,
-			"to":            toString,
-			"instrument_id": i.FIGI,
-			"alpha":         strconv.FormatFloat(s.cfg.STTMHyperparameters.Alpha, 'f', 2, 64),
-			"p_value":       strconv.FormatFloat(s.cfg.STTMHyperparameters.PValue, 'f', 2, 64),
-			"threshold":     strconv.FormatFloat(s.cfg.STTMHyperparameters.Threshold, 'f', 2, 64),
+			"from":           fromString,
+			"to":             toString,
+			"instrument_ids": strings.Join(instrumentIds, ","),
+			"alpha":          strconv.FormatFloat(s.cfg.STTMHyperparameters.Alpha, 'f', 2, 64),
+			"p_value":        strconv.FormatFloat(s.cfg.STTMHyperparameters.PValue, 'f', 2, 64),
+			"threshold":      strconv.FormatFloat(s.cfg.STTMHyperparameters.Threshold, 'f', 2, 64),
 		}).
 		SetResult(&model.STTMResponse{}).
 		SetError(&model.STTMErrorResponse{}).
@@ -71,7 +72,7 @@ func (s *STTMService) GetIndex(ctx context.Context, i model.Instrument, from, to
 
 	resp, err := req.Get(_sttmIndexURL)
 	if err != nil {
-		return 0, 0, fmt.Errorf("%w: can't send request for  sttm index", err)
+		return nil, 0, fmt.Errorf("%w: can't send request for  sttm index", err)
 	}
 	defer resp.Body.Close()
 
@@ -79,11 +80,11 @@ func (s *STTMService) GetIndex(ctx context.Context, i model.Instrument, from, to
 
 	if resp.IsError() {
 		response := resp.Error().(*model.STTMErrorResponse)
-		return 0, response.RetryAfter, fmt.Errorf("%s: sttm index request error", response.Message)
+		return nil, response.RetryAfter, fmt.Errorf("%s: sttm index request error", response.Message)
 	}
 	if resp.IsSuccess() {
-		return resp.Result().(*model.STTMResponse).Index, 0, nil
+		return resp.Result().(*model.STTMResponse).Indexes, 0, nil
 	}
 
-	return 0, 0, fmt.Errorf("sttm index unexpected request error: %s", resp.Status())
+	return nil, 0, fmt.Errorf("sttm index unexpected request error: %s", resp.Status())
 }

@@ -23,7 +23,7 @@ func parseTimeNoErr(s string) time.Time {
 
 var BacktestCfg = BacktestConfig{
 	From:  parseTimeNoErr("2024-01-01T00:00:00Z"),
-	To:    parseTimeNoErr("2025-01-01T00:00:00Z"),
+	To:    parseTimeNoErr("2025-01-05T00:00:00Z"),
 	Taxes: model.InvestorTaxes,
 	TradingBotConfig: TradingBotConfig{
 		StartAmountOfMoney: []model.MoneyValue{

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os/signal"
 	"syscall"
@@ -79,12 +80,19 @@ func main() {
 	executor := backtest.NewExecutor(zapLogger, model.InvestorTaxes, candlesService, portfolio)
 
 	tradingBot := backtest.NewTradingBot(zapLogger, instrumentsService, cfg.Instruments, candlesService, techAnService, sttmService, executor, cfg.Orders, portfolio)
-
 	intervals := backtest.SplitIntoWeeks(cfg.From.UTC(), cfg.To.UTC())
-	for _, interval := range intervals { // iterate over weeks
+
+	intervalsProfits := make([]IntervalProfit, 0)
+
+	for i, interval := range intervals { // iterate over weeks
 		zapLogger.Infof("Interval: %v", interval)
 		zapLogger.Infof("Balance: %v", portfolio.GetBalance())
 		zapLogger.Infof("Profit: %v", portfolio.GetProfit())
+		intervalsProfits = append(intervalsProfits, IntervalProfit{
+			Balance: portfolio.GetBalance(),
+			Profit:  portfolio.GetProfit(),
+			Ts:      interval.Start,
+		})
 		for _, h := range backtest.DivideIntoHours(interval.Start, interval.End) {
 			if h.Weekday() == time.Saturday || h.Weekday() == time.Sunday {
 				continue
@@ -92,11 +100,14 @@ func main() {
 
 			zapLogger.Debugf("Hour: %v", h)
 
-			if h.Weekday() == time.Thursday {
+			if h.Weekday() == time.Thursday && h.Hour() == 0 {
 				tradingBot.SellOutRemaining()
+				if i == len(intervals)-1 {
+					tradingBot.SellOutPortfolio()
+				}
 			}
 
-			if h.Weekday() == time.Friday && h.Hour() == 20 {
+			if h.Weekday() == time.Friday && h.Hour() == 20 && i != len(intervals)-1 {
 				zapLogger.Infof("Rebalance on: %s", h)
 				if err := tradingBot.Rebalance(ctx, interval.Start, h); err != nil {
 					zapLogger.Errorf("%s: rebalance failed", err)
@@ -124,7 +135,31 @@ func main() {
 	zapLogger.Infof("Balance: %v", portfolio.GetBalance())
 	zapLogger.Infof("Profit: %v", portfolio.GetProfit())
 	zapLogger.Infof("Remaining portfolio: %v", portfolio.GetInstruments())
+	intervalsProfits = append(intervalsProfits, IntervalProfit{
+		Balance: portfolio.GetBalance(),
+		Profit:  portfolio.GetProfit(),
+		Ts:      intervals[len(intervals)-1].End,
+	})
+
+	for _, b := range intervalsProfits {
+		fmt.Printf("%f,", b.Balance)
+	}
+	fmt.Println()
+	for _, b := range intervalsProfits {
+		fmt.Printf("%f,", b.Profit)
+	}
+	fmt.Println()
+	for _, b := range intervalsProfits {
+		fmt.Printf("%s,", b.Ts)
+	}
+	fmt.Println()
 
 	<-ctx.Done()
 	zapLogger.Infoln("start graceful shutdown")
+}
+
+type IntervalProfit struct {
+	Balance float64
+	Profit  float64
+	Ts      time.Time
 }

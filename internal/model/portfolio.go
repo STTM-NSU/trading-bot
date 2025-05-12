@@ -21,6 +21,7 @@ type PortfolioInstrument struct {
 	Lot               float64 `db:"lot"` // TODO: add to DB
 	MinPriceIncrement float64 `db:"min_price_increment"`
 	InstrumentID      string  `db:"instrument_id"`
+	FIGI              string  `db:"figi"`
 	AccountID         string  `db:"account_id"`
 }
 

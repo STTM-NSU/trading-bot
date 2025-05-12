@@ -63,7 +63,7 @@ func (t *TradingBot) CheckTechIndicators(currentTime time.Time) {
 	instruments := t.portfolio.GetInstruments()
 
 	for _, instr := range instruments {
-		price, err := t.candlesService.GetLastPriceOn(instr.InstrumentID, currentTime)
+		price, err := t.candlesService.GetLastPriceOn(instr.FIGI, currentTime)
 		if err != nil {
 			t.logger.Errorf("GetLastPriceOn techan check err: %v", err)
 			continue
@@ -134,6 +134,10 @@ func GetSellProfitSellBuyInstruments(top []model.Instrument, portMap map[string]
 	return sellProfit, sell, buy
 }
 
+func (t *TradingBot) SellOutPortfolio() {
+	t.executor.SellOutPortfolio()
+}
+
 func (t *TradingBot) SellOutRemaining() {
 	t.executor.SellOut()
 }
@@ -151,11 +155,11 @@ func (t *TradingBot) Rebalance(ctx context.Context, from, to time.Time) error {
 	t.logger.Infof("more info sellProfit: %v sell: %v buy: %v", sellProfit, sell, buy)
 
 	for _, i := range sellProfit {
-		lp, err := t.candlesService.GetLastPriceOn(i.InstrumentID, to)
+		lp, err := t.candlesService.GetLastPriceOn(i.FIGI, to)
 		if err != nil {
 			return fmt.Errorf("GetLastPriceOn: %w", err)
 		}
-		t.executor.SellLimit(lp, t.ordersCfg.SellOutProfit.ProfitPercentIndent, t.ordersCfg.SellOutProfit.DefencePercentIndent, i)
+		t.executor.SellLimit(lp, t.ordersCfg.SellOutProfit.ProfitPercentIndent, t.ordersCfg.HedgeOrder.DefencePercentIndent, i)
 	}
 	t.logger.Infof("sellProfit requested")
 
@@ -165,6 +169,7 @@ func (t *TradingBot) Rebalance(ctx context.Context, from, to time.Time) error {
 
 	t.logger.Infof("sellMarket requested")
 
+	t.executor.RemoveBuyOrders()
 	if err := t.BuyInstruments(buy, to); err != nil {
 		return fmt.Errorf("BuyInstruments: %w", err)
 	}
@@ -175,7 +180,7 @@ func (t *TradingBot) Rebalance(ctx context.Context, from, to time.Time) error {
 func (t *TradingBot) BuyInstruments(instruments []model.Instrument, to time.Time) error {
 	lastPrices := make(map[string]float64)
 	for _, i := range instruments {
-		lp, err := t.candlesService.GetLastPriceOn(i.UID, to)
+		lp, err := t.candlesService.GetLastPriceOn(i.FIGI, to)
 		if err != nil {
 			return fmt.Errorf("GetLastPriceOn: %w", err)
 		}
@@ -206,15 +211,16 @@ func (t *TradingBot) GetRebalancedTopInstruments(ctx context.Context, from, to t
 	}
 	t.logger.Infof("loaded instruments: %v", len(instrs))
 
+	portfolioInstruments := t.portfolio.GetInstruments()
 	availableBalance := t.portfolio.GetBalance()
 	instruments := make([]model.Instrument, 0, len(instrs))
 	for _, i := range instrs {
-		lastPrice, err := t.candlesService.GetLastPriceOn(i.UID, to)
+		lastPrice, err := t.candlesService.GetLastPriceOn(i.FIGI, to)
 		if err != nil {
 			t.logger.Errorf("GetLastPriceOn: %v", err)
 			continue
 		}
-		if lastPrice*float64(i.Lot) > availableBalance {
+		if _, ok := portfolioInstruments[i.UID]; lastPrice*float64(i.Lot) > availableBalance && !ok {
 			t.logger.Infof("last price: %v > %v", lastPrice*float64(i.Lot), availableBalance)
 			continue
 		}

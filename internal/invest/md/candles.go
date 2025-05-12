@@ -46,6 +46,10 @@ func (s *CandlesService) GetLastPriceOn(instrumentId string, from time.Time) (fl
 		}
 	}
 
+	if lastCandle == 0 {
+		return 0, fmt.Errorf("no candle %s %s %s", instrumentId, from.Add(-1*time.Hour), from.Add(1*time.Hour))
+	}
+
 	return lastCandle, nil
 }
 
@@ -68,7 +72,7 @@ func (s *CandlesService) GetCandlesFor(instrumentId string, from, to time.Time) 
 	// f := from.Truncate(time.Hour)
 	// t := to.Truncate(time.Hour)
 	// hoursCnt := int(to.Sub(from).Hours())
-	dbCandles, err := s.GetCandlesFromDB(instrumentId, from.Add(-3*time.Hour), to.Add(3*time.Hour))
+	dbCandles, err := s.GetCandlesFromDB(instrumentId, from, to)
 	if err != nil {
 		s.logger.Errorf("can't get candles from database: %s", err)
 	}
@@ -76,6 +80,7 @@ func (s *CandlesService) GetCandlesFor(instrumentId string, from, to time.Time) 
 	if len(dbCandles) > 0 {
 		return dbCandles, nil
 	}
+	s.logger.Warnf("no candles for instrument %s from %s to %s", instrumentId, from, to)
 
 	s.rateLimiter.Take()
 	resp, err := s.mdService.GetCandles(instrumentId, investapi.CandleInterval_CANDLE_INTERVAL_HOUR, from, to, 0, 0)

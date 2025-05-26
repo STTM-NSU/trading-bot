@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	_queryStocks = "SELECT ts, close_price FROM stocks WHERE ts BETWEEN $1::timestamp AND $2::timestamp AND instrument_id = $3"
+	_queryStocks = "SELECT ts, close_price FROM stocks WHERE ts BETWEEN $1::timestamp AND $2::timestamp AND instrument_id = $3 ORDER BY ts DESC"
 )
 
 func (s *CandlesService) GetCandlesFromDB(instrumentId string, from, to time.Time) ([]model.Candle, error) {

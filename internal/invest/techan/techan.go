@@ -24,7 +24,7 @@ func NewTechAnalyseService(c *investgo.Client, cfg config.TechnicalIndicatorsCon
 	return &TechAnalyseService{
 		logger:      logger,
 		cfg:         cfg,
-		rateLimiter: ratelimit.New(100, ratelimit.Per(1*time.Minute)),
+		rateLimiter: ratelimit.New(600, ratelimit.Per(1*time.Minute)),
 		mdService:   c.NewMarketDataServiceClient(),
 	}
 }

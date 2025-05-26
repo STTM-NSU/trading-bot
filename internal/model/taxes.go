@@ -22,3 +22,15 @@ var PremiumTaxes = map[InstrumentType]float64{
 }
 
 var OptionTaxes = []float64{0.5, 0.03} // 0,5 ₽ за опцион, но не менее 3% от его цены
+
+var MarginTaxPerDay = map[float64]float64{
+	5_000:      0, // the sum of uncovered positions less than <key> -> <value> taxes
+	50_000:     45,
+	100_000:    90,
+	250_000:    220,
+	500_000:    440,
+	1_000_000:  870,
+	2_500_000:  2150,
+	5_000_000:  4200,
+	10_000_000: 8200,
+}

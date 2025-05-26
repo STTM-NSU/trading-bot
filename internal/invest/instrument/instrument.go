@@ -22,13 +22,16 @@ type InstrumentsService struct {
 	instrClient *investgo.InstrumentsServiceClient
 	rateLimiter ratelimit.Limiter
 	logger      logger.Logger
+
+	queriesInstrumentsCache map[string]*model.Instrument
 }
 
 func NewInstrumentsService(client *investgo.Client, logger logger.Logger) *InstrumentsService {
 	return &InstrumentsService{
-		instrClient: client.NewInstrumentsServiceClient(),
-		rateLimiter: ratelimit.New(200, ratelimit.Per(1*time.Minute)),
-		logger:      logger,
+		instrClient:             client.NewInstrumentsServiceClient(),
+		rateLimiter:             ratelimit.New(200, ratelimit.Per(1*time.Minute)),
+		logger:                  logger,
+		queriesInstrumentsCache: make(map[string]*model.Instrument),
 	}
 }
 
@@ -58,6 +61,10 @@ func (s *InstrumentsService) GetInstruments(queries ...string) ([]model.Instrume
 }
 
 func (s *InstrumentsService) GetInstrument(query string) (*model.Instrument, error) {
+	if v, ok := s.queriesInstrumentsCache[query]; ok && v != nil {
+		return v, nil
+	}
+
 	s.rateLimiter.Take()
 	resp, err := s.instrClient.FindInstrument(query)
 	if err != nil {
@@ -85,7 +92,7 @@ func (s *InstrumentsService) GetInstrument(query string) (*model.Instrument, err
 			continue
 		}
 
-		return &model.Instrument{
+		instr := &model.Instrument{
 			FIGI:              info.GetFigi(),
 			UID:               info.GetUid(),
 			ISIN:              info.GetIsin(),
@@ -99,7 +106,11 @@ func (s *InstrumentsService) GetInstrument(query string) (*model.Instrument, err
 			ExchangeSection:   info.GetExchange(),
 			InstrumentType:    model.FromInvestAPIType(info.GetInstrumentKind()),
 			MinPriceIncrement: info.GetMinPriceIncrement().ToFloat(),
-		}, nil
+		}
+
+		s.queriesInstrumentsCache[query] = instr
+
+		return instr, nil
 	}
 
 	return nil, NotFoundError
